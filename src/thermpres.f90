@@ -22,6 +22,9 @@ module thermpres
   ! LAMBDA = pore pressure rise per unit temprature rise
   ! SHAPE = shape of strain distribution
   ! W = width of deformation zone
+  ! PHI = Maximum inelastic porosity change at large slip
+  ! DELTAD = Characteristic slip distance associated with the change in porosity
+  ! BETA =  volumetric pore fluid storage coefficient beta = n*(beta_n+beta_f)
   ! ASPERITY_FILE = add heterogeneity to initial fields
   !      T = use asperity array data file
   !      F = do not use asperity array data file
@@ -29,6 +32,7 @@ module thermpres
 
   type thermpres_type
      real(pr) :: rhoc,K,alphath,alphahy,Lambda,W
+     real(pr) :: beta,deltaD,Phi
      character(64) :: shape
      logical :: asperity_file
      character(64) :: filename
@@ -73,12 +77,13 @@ contains
     
     integer(pin) :: stat
     real(pr) :: rhoc,K,alphath,alphahy,Lambda,W
+    real(pr) :: beta,deltaD,Phi
     character(64) :: shape,filename
     logical :: asperity_file
 
     ! make namelist of user input variables
 
-    namelist /thermpres_list/ rhoc,K,alphath,alphahy,Lambda,shape,W,asperity_file,filename
+    namelist /thermpres_list/ rhoc,K,alphath,alphahy,Lambda,shape,W,beta,deltaD,Phi,asperity_file,filename
 
     ! assign default values
     
@@ -89,10 +94,13 @@ contains
     Lambda = one
     shape = 'plane'
     W = half
+    beta   = one
+    Phi    = zero
+    deltaD = one
     asperity_file = .false.
 
     ! read namelist from input file, call error routine if needed
-    
+    !write(*,*) beta,Phi,deltaD
     rewind(ninput)
     read(ninput,nml=thermpres_list,iostat=stat)
     if (stat>0) call error("Error reading namelist 'thermpres_list' in .in file",'read_thermpres')
@@ -113,8 +121,12 @@ contains
     tp%Lambda = Lambda
     tp%shape = shape
     tp%W = W
+    tp%beta   = beta
+    tp%Phi    = Phi
+    tp%deltaD = deltaD
     tp%asperity_file = asperity_file
     tp%filename = filename
+    !write(*,*) beta,Phi,deltaD
 
   end subroutine read_thermpres
 
@@ -178,7 +190,6 @@ contains
     end if
        
     ! spread values across all stages
-
     flt%T = spread(flt%T(:,:,:,1),4,mdl%ns)
     flt%p = spread(flt%p(:,:,:,1),4,mdl%ns)
 
@@ -198,6 +209,9 @@ contains
        call write_matlab(necho,'Lambda',tp%Lambda,'tp')
        call write_matlab(necho,'shape',tp%shape,'tp')
        call write_matlab(necho,'W',tp%W,'tp')
+       call write_matlab(necho,'beta',tp%beta,'tp')
+       call write_matlab(necho,'deltaD',tp%deltaD,'tp')
+       call write_matlab(necho,'Phi',tp%Phi,'tp')
 
     end if
 
@@ -294,7 +308,7 @@ contains
        do i = mdl%mx,mdl%px
                  
           call thermpres_rate_point(mdl,flt%dT(:,i,j,stage),flt%dp(:,i,j,stage), &
-               flt%T(:,i,j,stage),flt%p(:,i,j,stage),Q(i,j),tp)
+               flt%T(:,i,j,stage),flt%p(:,i,j,stage),Q(i,j),flt%V(i,j,stage),flt%U(i,j,stage),tp)
           
        end do
     end do
@@ -310,7 +324,7 @@ contains
   end subroutine thermpres_rate
 
 
-  subroutine thermpres_rate_point(mdl,dT,dp,T,p,Q,tp)
+  subroutine thermpres_rate_point(mdl,dT,dp,T,p,Q,V,U,tp)
     ! THERMPRES_RATE_POINT solves the 1D diffusion equations for thermal pressurization
     ! using explicit finite differences at one point on fault
     ! 
@@ -336,6 +350,7 @@ contains
     real(pr),dimension(:),intent(out) :: dT,dp
     real(pr),dimension(:),intent(in) :: T,p
     real(pr),intent(in) :: Q
+    real(pr),intent(in) :: V,U
     type(thermpres_type),intent(in) :: tp
 
     ! Internal Parameters:
@@ -352,12 +367,11 @@ contains
     ! C2 = coefficients of second-order approximation of Laplacian
 
     integer(pin) :: M,k
-    real(pr) :: dTdz,A,rt,rp
-    real(pr),dimension(:),allocatable :: G
+    real(pr) :: dTdz,A,rt,rp,rd
+    real(pr),dimension(:),allocatable :: G,G_temp
     type(asperity_type),pointer :: asp=>null()
 
     M = size(T)
-
     ! shear heating, either as boundary condition for slip-on-plane model or as
     ! volumetric heat source term for finite width shear zone model
 
@@ -372,7 +386,7 @@ contains
        ! no volumetric source term
 
        dT = zero
-
+   
     case default
 
        ! symmetry BC at z=0
@@ -382,10 +396,11 @@ contains
        ! volumetric source term
 
        allocate(G(M))
+       allocate(G_temp(M))
        allocate(asp)
 
        asp%type = tp%shape
-       asp%inside = .true.
+       asp%inside = .true. 
        asp%x0 = zero
 
        ! calculate nondimensionalized strain rate, G=W*(strain rate)/V,
@@ -407,22 +422,22 @@ contains
        case('gaussian')
           ! W is standard deviation of gaussian (see asperity.f90 for exact formula)
           A = one/sqrt(twopi)
-          asp%length_x = tp%W
+          asp%length_x = tp%W !length of asperity in x direction
           do k = 1,M
              G(k) = A*ampl(mdl%z(k),zero,mdl%dz,one,asp,dim=2)
           end do
        end select
 
        dT = G*Q/(tp%W*tp%rhoc)
-       
+       G_temp = G
        deallocate(G)
        deallocate(asp)
        asp => null()
-       
+
     end select
 
     ! special case of adiabatic, undrained response (only works for finite width shear zone)
-
+    ! case for nz = 1    
     if (M==1) then
        dp = tp%Lambda*dT
        return
@@ -434,20 +449,22 @@ contains
 
     ! parameter combinations
 
+
     rt = tp%alphath/mdl%dz**2
     rp = tp%alphahy/mdl%dz**2
-
+    rd = (1/tp%beta)*tp%Phi*(V/tp%deltaD)*exp(-U/tp%deltaD)
+        
     ! diffusion terms in interior
 
     do k = 2,M-1
        dT(k) = dT(k)+rt*(T(k+1)-two*T(k)+T(k-1))
-       dp(k) = dp(k)+rp*(p(k+1)-two*p(k)+p(k-1))
+       dp(k) = dp(k)+rp*(p(k+1)-two*p(k)+p(k-1)) - rd*G_temp(k)
     end do
 
     ! and at left boundary
 
     dT(1) = dT(1)+rt*two*(T(2)-T(1)-mdl%dz*dTdz)
-    dp(1) = dp(1)+rp*two*(p(2)-p(1)) ! dp/dz = 0 on fault (no fluid flow across it by symmetry)
+    dp(1) = dp(1)+rp*two*(p(2)-p(1)) - rd*G_temp(1)  ! dp/dz = 0 on fault (no fluid flow across it by symmetry)
 
     ! thermal pressurization term in pressure rate
 

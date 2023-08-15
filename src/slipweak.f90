@@ -126,7 +126,6 @@ contains
     asperity_file = .false.
     
     ! read namelist from input file, call error routine if needed
-    
     rewind(ninput)
     read(ninput,nml=slipweak_list,iostat=stat)
     if (stat/=0) call error("Error reading namelist 'slipweak_list' in .in file",'read_slipweak')
@@ -239,6 +238,7 @@ contains
        case('power','powerlaw')
           call write_matlab(necho,'p',sw%p,'sw')
        case('linear')
+       case('time-weakening')
        case('exponential')
        case('dugdale','Dugdale')
        case('kinematic')
@@ -290,25 +290,25 @@ contains
   end subroutine destroy_slipweak
 
 
-  function fric_sw(U,i,j,x,t,sw) result(f)
+  function fric_sw(U,i,j,r,t,sw) result(f)
     ! FRIC_SW returns the coefficient of friction for a slip-dependent friction law, given the slip
     ! 
     ! Modified: 23 July 2008
 
     use constants, only : zero,half,one,two,four
-
+        
     implicit none
 
     ! I/O Parameters:
     ! U = cumulative slip (line integral)
     ! I = index in x direction at which friction is applied
     ! J = index in y direction at which friction is applied  
-    ! X = distance in x direction
+    ! R = ridus 
     ! T = time
     ! SW = slip-weakening variables
     ! F = coefficient of friction
 
-    real(pr),intent(in) :: U,x,t
+    real(pr),intent(in) :: U,r,t
     integer(pin),intent(in) :: i,j
     type(slipweak_type),intent(in) :: sw
     real(pr) :: f
@@ -340,6 +340,26 @@ contains
 
        f = max(sw%fs(i,j)-(sw%fs(i,j)-sw%fd(i,j))*U/sw%Dc(i,j),sw%fd(i,j))
 
+    case('time-weakening') ! time weakening
+
+       fk = max(sw%fs(i,j)-(sw%fs(i,j)-sw%fd(i,j))*U/sw%Dc(i,j),sw%fd(i,j))
+        
+       ! Prescribed rupture tip location
+       xm = sw%V*t
+       if(abs(r)<sw%V*sw%T) then
+             if (abs(r)<=xm-sw%L) then
+                fkm = sw%fd(i,j)
+             elseif((abs(r)<xm).and.(abs(r)>xm-sw%L)) then
+                fkm = sw%fs(i,j) - (sw%fs(i,j)-sw%fd(i,j))*(xm-abs(r))/sw%L
+             else
+                fkm = fk
+             end if
+       else
+             fkm=fk
+       end if
+       ! combine by taking smaller of two friction coefficients
+       f = min(fk,fkm)
+
     case('exponential') ! exponential weakening
 
        f = sw%fd(i,j)+(sw%fs(i,j)-sw%fd(i,j))*exp(-U/sw%Dc(i,j))
@@ -365,8 +385,8 @@ contains
 
        xm = sw%vm*t
 
-       if (x<xm) then
-          fkm = sw%fd(i,j)+sw%dfdx*(xm-x)
+       if (r<xm) then
+          fkm = sw%fd(i,j)+sw%dfdx*(xm-r)
        else
           fkm = sw%fd(i,j)
        end if
@@ -375,8 +395,8 @@ contains
 
        xp = sw%vp*t
 
-       if (x>xp) then
-          fkp = sw%fd(i,j)+sw%dfdx*(x-xp)
+       if (r>xp) then
+          fkp = sw%fd(i,j)+sw%dfdx*(r-xp)
        else
           fkp = sw%fd(i,j)
        end if
@@ -398,10 +418,10 @@ contains
        xm = sw%xm
        xp = sw%xp
 
-       if (x<xm) then ! left of crack
-          f = sw%fd(i,j)+sw%dfdxm*(xm-x)
-       elseif (x>xp) then ! right of crack
-          f = sw%fd(i,j)+sw%dfdxp*(x-xp)
+       if (r<xm) then ! left of crack
+          f = sw%fd(i,j)+sw%dfdxm*(xm-r)
+       elseif (r>xp) then ! right of crack
+          f = sw%fd(i,j)+sw%dfdxp*(r-xp)
        else
           f = sw%fd(i,j)
        end if

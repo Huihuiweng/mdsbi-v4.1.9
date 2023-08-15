@@ -202,7 +202,7 @@ contains
        do j = 1,mdl%ny
           do i = mdl%mx,mdl%px
              do stage = 1,mdl%ns
-                flt%Q(i,j,stage) = set_strength_sw(flt%U(i,j,stage),flt%sz(i,j,stage),i,j,mdl%x(i),mdl%t,fri%sw)
+                flt%Q(i,j,stage) = set_strength_sw(flt%U(i,j,stage),flt%sz(i,j,stage),i,j,(mdl%x(i)**2+mdl%y(j)**2)**0.5,mdl%t,fri%sw)
              end do
           end do
        end do

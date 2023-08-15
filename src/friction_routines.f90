@@ -421,7 +421,7 @@ contains
     select case(fri%friction)
     case('slipweak')
        So = strength_sw(flt%U(i,j,s),flt%Q(i,j,s),flt%sz(i,j,s), &
-            i,j,mdl%x(i),mdl%t,fri%sw)
+            i,j,(mdl%x(i)**2+mdl%y(j)**2)**0.5,mdl%t,fri%sw)
     case('constfV')
        ! constant f,V: set V=1 and calculate new shear resistance
        ! (assuming f=1 and no resistance in y direction)
@@ -520,7 +520,7 @@ contains
 
     if (fri%friction=='slipweak') &
          flt%dQ(i,j,s) = evolution_sw(flt%U(i,j,s),flt%V(i,j,s),flt%Q(i,j,s), &
-         flt%sz(i,j,s),i,j,mdl%x(i),mdl%t,fri%sw)
+         flt%sz(i,j,s),i,j,(mdl%x(i)**2+mdl%y(j)**2)**0.5,mdl%t,fri%sw)
 
   end subroutine friction_strength
 
@@ -867,7 +867,7 @@ contains
           select case(fri%friction)
           case('slipweak')
              st = strength_sw(flt%U(i,j,s),flt%Q(i,j,s),flt%sz(i,j,s), &
-                  i,j,mdl%x(i),mdl%t,fri%sw)
+                 i,j,(mdl%x(i)**2+mdl%y(j)**2)**0.5,mdl%t,fri%sw)
           case default
              st = zero
           end select
@@ -1054,7 +1054,8 @@ contains
              
              select case(fri%friction)
              case('slipweak')
-                fri%f0 = fric_sw(flt%U(i,j,s),i,j,mdl%x(i),mdl%t,fri%sw)
+                !fri%f0 = fric_sw(flt%U(i,j,s),i,j,mdl%x(i),mdl%t,fri%sw)     
+               fri%f0 = fric_sw(flt%U(i,j,s),i,j,(mdl%x(i)**2+mdl%y(j)**2)**0.5,mdl%t,fri%sw)
              case('constfV')
                 ! constant f,V: set V=1 and calculate new shear resistance
                 ! (assuming f=1 and no resistance in y direction)

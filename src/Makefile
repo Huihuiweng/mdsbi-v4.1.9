@@ -7,64 +7,31 @@ BUILD = production
 
 # Compiler options for different machines
 
-HOST = $(shell hostname)
 Exe = ../mdsbi
 
-# Mac Pro
-
-ifeq ($(findstring civet,$(HOST)),civet)
- F95 = openmpif90 -fdefault-real-8 -fdefault-double-8
+F95 = mpiifort
  ifeq ($(BUILD),debug)
-  F95FLAGS = -g -Wall -Wextra -Wconversion -fbounds-check -fbacktrace \
-	-fimplicit-none -std=f2003
- endif
- ifeq ($(BUILD),production)
-  F95FLAGS = -O5 -Wuninitialized
- endif
- FFTW2 = -L/opt/local/lib -lrfftw_mpi -lfftw_mpi -lrfftw -lfftw
- FFTW3 = -L/opt/local/lib -lfftw3
- LIBS0 = -framework vecLib
- ifeq ($(shell diff fft_routines.f90 fft_routines_fftw2.f90),)
-	LIBS = $(FFTW2) $(LIBS0)
- endif
- ifeq ($(shell diff fft_routines.f90 fft_routines_fftw2c.f90),)
-	LIBS = $(FFTW2) $(LIBS0)
- endif
- ifeq ($(shell diff fft_routines.f90 fft_routines_fftw3.f90),)
-	LIBS = $(FFTW3) $(LIBS0)
- endif
-endif
-
-# Stanford CEES
-
-ifeq ($(findstring cees,$(HOST)),cees)
- Exe = /data/dunham1/edunham/mlaunch/mdsbi
- F95 = mpif90 -r8 -i4 -i_dynamic
- ifeq ($(BUILD),debug)
-  F95FLAGS = -g -check all -check noarg_temp_created -warn all \
-	-traceback -ftrapuv -fpe0 -fp-stack-check -fltconsistency -std03
+  F95FLAGS = -g -check all -check noarg_temp_created -warn all -traceback -ftrapuv -fpe0
  endif
  ifeq ($(BUILD),production)
   F95FLAGS = -O2
  endif
  ifeq ($(BUILD),openmp)
-  F95FLAGS = -O2 -openmp -parallel
+   F95FLAGS = -o2 -OPENMP -PARALLEL
  endif
- FFTW2 = 
- MKLPATH = /usr/local/INTEL/Compiler/11.1/069/mkl
- FFTW3 = -L$(MKLPATH)/include/fftw -lfftw3
- LIBS0 = -L$(MKLPATH) -Wl,--start-group -lmkl_intel_lp64 -lmkl_sequential \
-         -lmkl_core -Wl,--end-group -lpthread
+ FFTW2 = -L/home/weng/Works/Softwares/fftw-3.3.10/lib/ -lrfftw_mpi -lfftw_mpi -lrfftw -lfftw \
+	 -L/home/weng/Works/Softwares/lapack-3.9.0 -llapack
+ FFTW3 = -L/home/weng/Works/Softwares/fftw-3.3.10/lib/ -lfftw3 \
+	  -llapack
  ifeq ($(shell diff fft_routines.f90 fft_routines_fftw2.f90),)
-	LIBS = $(FFTW2) $(LIBS0)
+	LIBS = $(FFTW2) 
  endif
  ifeq ($(shell diff fft_routines.f90 fft_routines_fftw2c.f90),)
-	LIBS = $(FFTW2) $(LIBS0)
+	LIBS = $(FFTW2)
  endif
  ifeq ($(shell diff fft_routines.f90 fft_routines_fftw3.f90),)
-	LIBS = $(FFTW3) $(LIBS0)
+	LIBS = $(FFTW3)
  endif
-endif
 
 # BlueGene/L
 ifeq ($(ARCH),ppc64)
