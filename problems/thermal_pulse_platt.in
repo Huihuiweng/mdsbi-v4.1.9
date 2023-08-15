@@ -1,0 +1,125 @@
+! Problem name: thermal_pulse_platt
+! Description: flash heating and thermal pressurization, pulse-like rupture
+! (small version, low resolution, constant Vw), example for John Platt
+!----------------------------------------------------------------------------
+
+&problem_list
+ name = 'tpVw', ninfo = 10 /
+
+&model_list
+ dim = 2, mode = 3,
+ mu = 30d3, cs = 3d3,
+ nt = 2000, nx = 2048, h = 1d-3,
+ nz = 63, dz = 1d-2,
+ refine = 1d0, cfl = 0.7d0,
+ method = 'substep', niter = 1,
+ substep_method = 'adaptive', scheme = 'RK3(2)3', rtol = 1d-3 /
+
+&convolution_list
+ formulation = 'displacement' /
+
+&kernel_list
+ precalc = T, method = 'spline' /
+
+&fourier_list
+ plan_level = 2 /
+
+ADAPTIVE STEPPING CONTROLS RELATIVE ERROR (REL_ERR=ABS_ERR/SCALE)
+AND YOU CAN SET A SCALE FOR THE FIELDS HERE (LEAVE UNSET TO USE "CURRENT" 
+VALUE OF FIELD, WHICH WORKS EXCEPT WHEN FIELD IS CLOSE TO ZERO):
+ SCALE_U = scale of slip
+ SCALE_Q = scale of state variable
+ SCALE_T = scale of temperature
+ SCALE_P = scale of pore pressure
+ SCALE_VMIN = minimum scale of slip velocity
+ SCALE_VMAX = maximum scale of slip velocity
+
+&fault_list
+ thermpres = T, asperity_list = T,
+ scale_U = 1d-3, scale_Q = 1d0,
+ scale_s = 1d0, scale_Vmin = 1d-16, scale_Vmax = 1d0,
+ scale_T = 1d0, scale_p = 1d0 /
+
+!---begin:fault_asperity_list---
+Uniform background properties
+uniform	T
+0d0	0d0
+0d0	0d0
+29d0	0d0	-126d0	0.592110469584667d0	483.15d0
+Triggering perturbation
+gaussian	T
+0d0	2.5d-2
+0d0	0d0
+78.457988452524d0	0d0	0d0	0d0	0d0
+!---end:fault_asperity_list---
+
+&thermpres_list
+ K = 1.89d-3, alphath = 0.7d0, alphahy = 2.988d0, Lambda = 0.468d0,
+ shape = 'gaussian', w = 50d-3 /
+
+&friction_list
+ friction = 'ratestate' /
+
+&ratestate_list
+ asperity_list = T, form = 'RSF' /
+
+
+!---begin:ratestate_asperity_list---
+Uniform background properties
+uniform	T
+0d0	0d0
+0d0	0d0
+0.7d0	1d-6	1.6d-2	2d-2	20d-6	0.13d0	0.17d0
+!---end:ratestate_asperity_list---
+
+
+!---begin:mesh_list---
+flt
+Ux Vx sx sz T0 p0
+-1d10	1d10	1	T	T
+0d0	0d0	1	T	T
+0d0	0d0	1	T	T
+0d0	1d10	10
+flt
+T p
+-1d10	1d10	1	T	T
+0d0	0d0	1	T	T
+0d0	1d10	1	T	T
+0d0	1d10	10
+x0cm
+Ux Vx sx sz T0 p0
+0d0	0d0	1	T	T
+0d0	0d0	1	T	T
+0d0	0d0	1	T	T
+0d0	1d10	1
+x100cm
+Ux Vx sx sz T0 p0
+1d0	1d0	1	T	T
+0d0	0d0	1	T	T
+0d0	0d0	1	T	T
+0d0	1d10	1
+x200cm
+Ux Vx sx sz T0 p0
+2d0	2d0	1	T	T
+0d0	0d0	1	T	T
+0d0	0d0	1	T	T
+0d0	1d10	1
+x300cm
+Ux Vx sx sz T0 p0
+3d0	3d0	1	T	T
+0d0	0d0	1	T	T
+0d0	0d0	1	T	T
+0d0	1d10	1
+x400cm
+Ux Vx sx sz T0 p0
+4d0	4d0	1	T	T
+0d0	0d0	1	T	T
+0d0	0d0	1	T	T
+0d0	1d10	1
+x500cm
+Ux Vx sx sz T0 p0
+5d0	5d0	1	T	T
+0d0	0d0	1	T	T
+0d0	0d0	1	T	T
+0d0	1d10	1
+!---end:mesh_list---
